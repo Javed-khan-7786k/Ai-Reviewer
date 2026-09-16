@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -14,7 +14,6 @@ import {
   Bell,
   User,
 } from 'lucide-react';
-import { mockUsage } from '../data/mockData';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -30,9 +29,19 @@ const navItems = [
 export default function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
 
   const currentPage = navItems.find(item => item.path === location.pathname)?.label || 'Dashboard';
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/documents?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery('');
+    }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-50">
@@ -113,29 +122,11 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Bottom section */}
         <div className="p-3 border-t border-neutral-100">
-          {sidebarOpen ? (
-            <div className="px-3 py-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-neutral-500">Free Plan</span>
-                <span className="text-xs text-neutral-400">{mockUsage.documentsProcessed}/{mockUsage.dailyLimit} today</span>
-              </div>
-              <div className="w-full h-1.5 bg-neutral-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary-500 rounded-full transition-all"
-                  style={{ width: `${(mockUsage.documentsProcessed / mockUsage.dailyLimit) * 100}%` }}
-                />
-              </div>
-              <button className="mt-3 w-full py-2 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors">
-                Upgrade Plan
-              </button>
+          <div className="flex justify-center">
+            <div className="w-8 h-8 rounded-full bg-navy-100 flex items-center justify-center">
+              <User className="w-4 h-4 text-navy-700" />
             </div>
-          ) : (
-            <div className="flex justify-center">
-              <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
-                <User className="w-4 h-4 text-primary-600" />
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </aside>
 
@@ -154,10 +145,18 @@ export default function AppShell({ children }: AppShellProps) {
           <h1 className="text-sm font-semibold text-navy-900">{currentPage}</h1>
 
           <div className="ml-auto flex items-center gap-2">
-            <button className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm text-neutral-500 bg-neutral-50 rounded-lg border border-neutral-200 hover:border-neutral-300 transition-colors">
-              <Search className="w-4 h-4" />
-              <span className="hidden md:inline">Search documents...</span>
-            </button>
+            <form onSubmit={handleSearch} className="hidden sm:flex items-center">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search documents..."
+                  className="pl-10 pr-4 py-2 text-sm text-neutral-600 bg-neutral-50 rounded-lg border border-neutral-200 hover:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all w-48 md:w-64"
+                />
+              </div>
+            </form>
             
             <Link
               to="/upload"

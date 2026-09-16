@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FileText,
@@ -81,11 +81,29 @@ function DeleteConfirmation({ fileName, onConfirm, onCancel }: {
 }
 
 export default function DocumentsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<DocumentType | 'all'>('all');
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
   const [documents, setDocuments] = useState(mockDocuments);
+
+  // Sync search query with URL
+  useEffect(() => {
+    const urlSearch = searchParams.get('search');
+    if (urlSearch && urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [searchParams]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (value.trim()) {
+      setSearchParams({ search: value });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   const filteredDocs = documents.filter((doc) => {
     const matchesSearch = doc.fileName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -137,7 +155,7 @@ export default function DocumentsPage() {
               type="text"
               placeholder="Search documents..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
             />
           </div>

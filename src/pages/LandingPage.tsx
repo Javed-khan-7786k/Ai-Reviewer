@@ -76,11 +76,11 @@ function Header() {
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
-            <Link to="/dashboard" className="text-sm font-medium text-neutral-600 hover:text-navy-900 transition-colors px-3 py-2">
+            <Link to="/login" className="text-sm font-medium text-neutral-600 hover:text-navy-900 transition-colors px-3 py-2">
               Sign in
             </Link>
             <Link
-              to="/upload"
+              to="/login"
               className="text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 px-4 py-2 rounded-lg transition-colors"
             >
               Get started
@@ -107,8 +107,8 @@ function Header() {
               <a href="#features" className="text-sm text-neutral-600 px-2 py-1">Features</a>
               <a href="#how-it-works" className="text-sm text-neutral-600 px-2 py-1">How it works</a>
               <a href="#privacy" className="text-sm text-neutral-600 px-2 py-1">Privacy</a>
-              <Link to="/dashboard" className="text-sm text-neutral-600 px-2 py-1">Sign in</Link>
-              <Link to="/upload" className="text-sm font-medium text-white bg-navy-900 px-4 py-2 rounded-lg text-center">
+              <Link to="/login" className="text-sm text-neutral-600 px-2 py-1">Sign in</Link>
+              <Link to="/login" className="text-sm font-medium text-white bg-navy-900 px-4 py-2 rounded-lg text-center">
                 Get started
               </Link>
             </nav>
@@ -145,7 +145,7 @@ function HeroSection() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
-                  to="/upload"
+                  to="/login"
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg transition-colors shadow-sm"
                 >
                   <Upload className="w-4 h-4" />
@@ -430,11 +430,11 @@ function CTASection() {
             Upload your first document and get structured feedback in seconds.
           </p>
           <Link
-            to="/upload"
+            to="/login"
             className="inline-flex items-center gap-2 mt-8 px-8 py-3.5 text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 rounded-lg transition-colors shadow-sm"
           >
             <Upload className="w-4 h-4" />
-            Upload a document
+            Get started free
           </Link>
         </motion.div>
       </div>
@@ -463,7 +463,7 @@ function Footer() {
             <ul className="space-y-2">
               <li><a href="#features" className="text-xs text-neutral-600 hover:text-navy-900 transition-colors">Features</a></li>
               <li><a href="#how-it-works" className="text-xs text-neutral-600 hover:text-navy-900 transition-colors">How it works</a></li>
-              <li><Link to="/dashboard" className="text-xs text-neutral-600 hover:text-navy-900 transition-colors">Dashboard</Link></li>
+              <li><Link to="/login" className="text-xs text-neutral-600 hover:text-navy-900 transition-colors">Sign in</Link></li>
             </ul>
           </div>
           <div>
