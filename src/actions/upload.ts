@@ -103,7 +103,8 @@ export async function uploadDocumentAction(
       documentType: isResumeHint ? "resume" : "general",
     });
 
-    // Use Inngest for background processing if configured
+    // Use Inngest for background processing if configured; otherwise await inline
+    // In serverless environments (Vercel), background promises without await are frozen immediately.
     if (process.env.INNGEST_EVENT_KEY) {
       try {
         await inngest.send({
@@ -112,16 +113,11 @@ export async function uploadDocumentAction(
         });
       } catch (inngestErr) {
         console.warn("Inngest event failed, processing inline:", inngestErr);
-        // Fallback to direct processing
-        processDocumentJob(document.id, user.id).catch((err) =>
-          console.error("Inline worker error:", err)
-        );
+        await processDocumentJob(document.id, user.id);
       }
     } else {
-      // Direct async processing (works on Vercel serverless)
-      processDocumentJob(document.id, user.id).catch((err) =>
-        console.error("Worker error:", err)
-      );
+      // Direct processing awaited so it finishes reliably on Vercel serverless
+      await processDocumentJob(document.id, user.id);
     }
 
     return { success: true, documentId: document.id };

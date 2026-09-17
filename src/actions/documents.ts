@@ -54,12 +54,7 @@ export async function retryDocumentAction(
     }
 
     await db.updateDocument(id, { status: "pending" });
-
-    setTimeout(() => {
-      processDocumentJob(doc.id, doc.userId).catch((err) =>
-        console.error("Retry processing error:", err)
-      );
-    }, 100);
+    await processDocumentJob(doc.id, doc.userId);
 
     return { success: true };
   } catch (err: any) {
