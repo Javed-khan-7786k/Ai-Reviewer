@@ -465,3 +465,70 @@ export async function logoutUserAction(): Promise<{ success: boolean }> {
   cookieStore.delete("ai_reviewer_guest_id");
   return { success: true };
 }
+
+export async function restoreSessionFromTokenAction(token: string): Promise<{
+  success: boolean;
+  user?: User;
+  isRealUser?: boolean;
+  error?: string;
+}> {
+  try {
+    if (!token) {
+      return { success: false, error: "No token provided" };
+    }
+    const payload = verifyJwt(token);
+    if (!payload || !payload.userId) {
+      return { success: false, error: "Invalid or expired session token" };
+    }
+
+    const isSuper = payload.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+    const dbUser = await db.getUser(payload.userId);
+    const user: User = dbUser || {
+      id: payload.userId,
+      email: payload.email,
+      name: payload.name || payload.email.split("@")[0],
+      plan: isSuper ? "pro" : ((payload as any).plan || "free"),
+      role: isSuper ? "admin" : (payload.role || "user"),
+      passwordHash: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const isRealUser =
+      !user.email.toLowerCase().includes("@aireviewer.local") &&
+      user.id !== "usr_guest_pending";
+
+    // Re-issue fresh cookie
+    const freshToken = signJwt({
+      userId: user.id,
+      email: user.email,
+      name: user.name || "",
+      role: isSuper ? "admin" : (user.role || "user"),
+      plan: isSuper ? "pro" : user.plan,
+    });
+
+    const cookieStore = await cookies();
+    cookieStore.set(SESSION_COOKIE, freshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: "/",
+    });
+
+    if (!isRealUser) {
+      cookieStore.set("ai_reviewer_guest_id", user.id, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30,
+        path: "/",
+      });
+    }
+
+    return { success: true, user, isRealUser };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to restore session" };
+  }
+}
+

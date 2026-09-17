@@ -9,6 +9,32 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("ai_reviewer_jwt")?.value;
 
+  // If user is already logged in with a real account, redirect away from /login and /signup
+  if (token && (pathname === "/login" || pathname === "/signup")) {
+    try {
+      const parts = token.split(".");
+      if (parts.length === 3) {
+        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+        const json =
+          typeof atob === "function"
+            ? atob(padded)
+            : Buffer.from(padded, "base64").toString("utf-8");
+        const payload = JSON.parse(json);
+        if (
+          payload?.userId &&
+          payload?.email &&
+          !payload.email.toLowerCase().includes("@aireviewer.local") &&
+          payload.userId !== "usr_guest_pending"
+        ) {
+          return NextResponse.redirect(new URL("/dashboard", request.url));
+        }
+      }
+    } catch {
+      // Continue to login page if token parse fails
+    }
+  }
+
   // Allow public routes and static files
   if (
     PUBLIC_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/")) ||

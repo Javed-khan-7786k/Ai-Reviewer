@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles, ArrowRight, Lock, Mail, AlertCircle, CheckCircle2, UserCheck, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { loginUserAction, demoLoginAction, googleLoginAction } from "@/actions/auth";
+import { loginUserAction, demoLoginAction, googleLoginAction, restoreSessionFromTokenAction } from "@/actions/auth";
 import { useToast } from "@/components/ui/Toast";
 
 export default function LoginPage() {
   const router = useRouter();
   const toast = useToast();
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -20,18 +21,40 @@ export default function LoginPage() {
   const [storedGuestUser, setStoredGuestUser] = useState<any>(null);
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const raw = localStorage.getItem("ai_reviewer_user");
-      if (raw) {
+    async function checkExistingAuth() {
+      if (typeof window === "undefined") return;
+
+      const rawUser = localStorage.getItem("ai_reviewer_user");
+      const rawToken = localStorage.getItem("ai_reviewer_jwt");
+
+      if (rawUser) {
         try {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.name) {
+          const parsed = JSON.parse(rawUser);
+          const isRealUser =
+            parsed &&
+            parsed.id &&
+            parsed.email &&
+            !parsed.email.toLowerCase().includes("@aireviewer.local") &&
+            parsed.id !== "usr_guest_pending";
+
+          if (isRealUser) {
+            // Already logged in! Restore session cookie and redirect directly to dashboard
+            if (rawToken) {
+              await restoreSessionFromTokenAction(rawToken);
+            }
+            router.replace("/dashboard");
+            return;
+          } else if (parsed && parsed.name) {
             setStoredGuestUser(parsed);
           }
         } catch {}
       }
+
+      setCheckingAuth(false);
     }
-  }, []);
+
+    checkExistingAuth();
+  }, [router]);
 
   const saveSessionToStorage = (token?: string, user?: any) => {
     if (typeof window !== "undefined") {
@@ -98,6 +121,21 @@ export default function LoginPage() {
       router.push("/dashboard");
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white animate-pulse shadow-md">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <p className="text-xs font-semibold text-slate-500 animate-pulse">
+            Verifying session...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-slate-50">

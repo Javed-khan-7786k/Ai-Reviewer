@@ -8,13 +8,43 @@ import { Button } from "@/components/ui/Button";
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    const checkUser = () => {
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem("ai_reviewer_user");
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (
+              parsed &&
+              parsed.id &&
+              parsed.email &&
+              !parsed.email.toLowerCase().includes("@aireviewer.local") &&
+              parsed.id !== "usr_guest_pending"
+            ) {
+              setCurrentUser(parsed);
+              return;
+            }
+          } catch {}
+        }
+        setCurrentUser(null);
+      }
+    };
+
+    checkUser();
+    window.addEventListener("ai-reviewer-user-changed", checkUser);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("ai-reviewer-user-changed", checkUser);
+    };
   }, []);
 
   return (
@@ -77,17 +107,28 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="hidden md:flex items-center gap-3">
-          <Link href="/login">
-            <Button variant="outline" size="sm">
-              Sign In
-            </Button>
-          </Link>
-          <Link href="/signup">
-            <Button size="sm" className="shadow-xs">
-              <span>Get Started</span>
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </Button>
-          </Link>
+          {currentUser ? (
+            <Link href="/dashboard">
+              <Button size="sm" className="shadow-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white">
+                <span>Go to Dashboard</span>
+                <ArrowRight className="w-4 h-4 ml-0.5" />
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/login">
+                <Button variant="outline" size="sm">
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/signup">
+                <Button size="sm" className="shadow-xs">
+                  <span>Get Started</span>
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile menu toggle */}

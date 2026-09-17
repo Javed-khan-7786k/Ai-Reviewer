@@ -6,6 +6,7 @@ import {
   syncGuestUserAction,
   resetGuestUserAction,
   getCurrentUserAction,
+  restoreSessionFromTokenAction,
 } from "@/actions/auth";
 
 export const USER_STORAGE_KEY = "ai_reviewer_user";
@@ -102,7 +103,18 @@ export function LocalStorageUserSync() {
           user.id !== "usr_guest_pending";
 
         if (isRealLocalUser) {
-          // LocalStorage holds a real user session
+          // LocalStorage holds a real user session — restore server cookie if needed
+          const localJwt = localStorage.getItem("ai_reviewer_jwt");
+          if (localJwt) {
+            const restored = await restoreSessionFromTokenAction(localJwt);
+            if (restored.success && restored.user) {
+              localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(restored.user));
+              window.dispatchEvent(
+                new CustomEvent(USER_CHANGED_EVENT, { detail: restored.user })
+              );
+              return;
+            }
+          }
           window.dispatchEvent(
             new CustomEvent(USER_CHANGED_EVENT, { detail: user })
           );
