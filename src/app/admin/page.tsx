@@ -84,9 +84,13 @@ export default function AdminPage() {
       }
       setUsers(userList);
 
-      // Issue #2: Check admin role from DB, not email
-      const isSessionAdmin = u?.role === "admin";
-      const localAdmin = typeof window !== "undefined" && localStorage.getItem("ai_reviewer_admin_unlocked") === "true";
+      // Super admin check: explicit role from DB or super admin email
+      const isSessionAdmin =
+        u?.role === "admin" ||
+        u?.email?.toLowerCase() === "javedkhan7786king@gmail.com";
+      const localAdmin =
+        typeof window !== "undefined" &&
+        localStorage.getItem("ai_reviewer_admin_unlocked") === "true";
       if (isSessionAdmin || localAdmin) {
         setIsUnlocked(true);
       }

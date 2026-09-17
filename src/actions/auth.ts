@@ -87,6 +87,9 @@ export async function getCurrentUserAction(): Promise<User & { role?: string; au
   };
 }
 
+const SUPER_ADMIN_EMAIL = "javedkhan7786king@gmail.com";
+const SUPER_ADMIN_DEFAULT_PASS = "Javed@123";
+
 export async function loginUserAction(formData: FormData): Promise<{
   success: boolean;
   user?: User;
@@ -111,26 +114,56 @@ export async function loginUserAction(formData: FormData): Promise<{
     }
 
     const { email, password } = parsed.data;
-    const user = await db.findUserByEmail(email);
+    const isSuperAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
+    let user = await db.findUserByEmail(email);
 
     if (!user) {
-      return { success: false, error: "No account found with this email. Please sign up first." };
-    }
+      if (isSuperAdmin && password === SUPER_ADMIN_DEFAULT_PASS) {
+        // Automatically create and initialize super admin in MongoDB
+        user = await db.createUser({
+          name: "Javed Khan (Admin)",
+          email: SUPER_ADMIN_EMAIL,
+          role: "admin",
+          plan: "pro",
+          passwordHash: hashPassword(SUPER_ADMIN_DEFAULT_PASS),
+        });
+      } else {
+        return { success: false, error: "No account found with this email. Please sign up first." };
+      }
+    } else {
+      // Verify password
+      let isValidPass = false;
+      if (isSuperAdmin && password === SUPER_ADMIN_DEFAULT_PASS) {
+        isValidPass = true;
+      } else if (user.passwordHash) {
+        isValidPass = verifyPassword(password, user.passwordHash);
+      }
 
-    // Verify password if user has one stored
-    if (user.passwordHash) {
-      if (!verifyPassword(password, user.passwordHash)) {
+      if (!isValidPass) {
         return { success: false, error: "Incorrect password. Please try again." };
+      }
+
+      // Ensure super admin role and pro plan are active in DB
+      if (isSuperAdmin && (user.role !== "admin" || user.plan !== "pro")) {
+        await db.updateUser(user.id, {
+          role: "admin",
+          plan: "pro",
+          passwordHash: hashPassword(password),
+        });
+        user = (await db.getUser(user.id)) || user;
       }
     }
 
-    // Issue #2: Role from DB, not email
+    const userRole = isSuperAdmin ? "admin" : (user.role || "user");
+    const userPlan = isSuperAdmin ? "pro" : user.plan;
+
     const token = signJwt({
       userId: user.id,
       email: user.email,
       name: user.name || "",
-      role: user.role || "user",
-      plan: user.plan,
+      role: userRole,
+      plan: userPlan,
     });
 
     const cookieStore = await cookies();
@@ -142,7 +175,11 @@ export async function loginUserAction(formData: FormData): Promise<{
       path: "/",
     });
 
-    return { success: true, user, token };
+    return {
+      success: true,
+      user: { ...user, role: userRole, plan: userPlan },
+      token,
+    };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to sign in." };
   }
@@ -162,18 +199,29 @@ export async function googleLoginAction(profile?: {
     const email = profile?.email?.trim().toLowerCase() || "user.google@gmail.com";
     const name = profile?.name?.trim() || "Google Verified User";
 
+    const isSuperAdmin = email === SUPER_ADMIN_EMAIL.toLowerCase();
     let user = await db.findUserByEmail(email);
     if (!user) {
-      user = await db.createUser({ name, email, plan: "free" });
+      user = await db.createUser({
+        name,
+        email,
+        plan: isSuperAdmin ? "pro" : "free",
+        role: isSuperAdmin ? "admin" : "user",
+      });
+    } else if (isSuperAdmin && (user.role !== "admin" || user.plan !== "pro")) {
+      await db.updateUser(user.id, { role: "admin", plan: "pro" });
+      user = (await db.getUser(user.id)) || user;
     }
 
-    // Issue #2: Role from DB
+    const userRole = isSuperAdmin ? "admin" : (user.role || "user");
+    const userPlan = isSuperAdmin ? "pro" : user.plan;
+
     const token = signJwt({
       userId: user.id,
       email: user.email,
       name: user.name || name,
-      role: user.role || "user",
-      plan: user.plan,
+      role: userRole,
+      plan: userPlan,
     });
 
     const cookieStore = await cookies();
@@ -281,20 +329,25 @@ export async function registerUserAction(formData: FormData): Promise<{
 
     // Issue #1: Hash password before storing
     const passwordHash = hashPassword(password);
+    const isSuperAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
     const newUser = await db.createUser({
       name,
       email,
-      plan: "free",
-      role: "user",
+      plan: isSuperAdmin ? "pro" : "free",
+      role: isSuperAdmin ? "admin" : "user",
       passwordHash,
     });
+
+    const userRole = isSuperAdmin ? "admin" : (newUser.role || "user");
+    const userPlan = isSuperAdmin ? "pro" : newUser.plan;
 
     const token = signJwt({
       userId: newUser.id,
       email: newUser.email,
       name: newUser.name || "",
-      role: newUser.role || "user",
-      plan: newUser.plan,
+      role: userRole,
+      plan: userPlan,
     });
 
     const cookieStore = await cookies();
