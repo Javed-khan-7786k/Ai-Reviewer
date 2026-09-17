@@ -5,13 +5,26 @@ import { getCurrentUserAction } from "@/actions/auth";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
+async function assertAdmin(): Promise<void> {
+  const user = await getCurrentUserAction();
+  const isAuthorized =
+    user &&
+    (user.role === "admin" ||
+      user.email?.toLowerCase() === "javedkhan7786king@gmail.com");
+  if (!isAuthorized) {
+    throw new Error("Unauthorized: Super Admin access required.");
+  }
+}
+
 export async function getAdminConfigAction(): Promise<AdminConfig> {
+  await assertAdmin();
   return getAdminConfigAsync();
 }
 
 export async function updateAdminConfigAction(
   updates: Partial<AdminConfig>
 ): Promise<{ success: boolean; config: AdminConfig }> {
+  await assertAdmin();
   const config = await updateAdminConfig(updates);
   revalidatePath("/admin");
   revalidatePath("/subscription");
@@ -21,6 +34,7 @@ export async function updateAdminConfigAction(
 
 // Issue #2: Role from DB, not email
 export async function getAllUsersAdminAction() {
+  await assertAdmin();
   const users = await db.listUsers();
   return users.map((u) => ({
     id: u.id,
@@ -32,48 +46,20 @@ export async function getAllUsersAdminAction() {
   }));
 }
 
-// Issue #3: Admin passcode from env var + auto-elevate user to admin in DB and JWT
-export async function verifyAdminPasscodeAction(passcode: string): Promise<{
+// Public passcode elevation is strictly disabled. Only Javedkhan7786king@gmail.com is Super Admin.
+export async function verifyAdminPasscodeAction(_passcode: string): Promise<{
   success: boolean;
   error?: string;
 }> {
-  const envPasscode = process.env.ADMIN_PASSCODE || "admin123";
-  if (passcode.trim() === envPasscode) {
-    try {
-      const user = await getCurrentUserAction();
-      if (user && user.id) {
-        await db.updateUser(user.id, { role: "admin" });
-        const { signJwt } = await import("@/lib/jwt");
-        const { cookies } = await import("next/headers");
-        const updatedUser = await db.getUser(user.id);
-        if (updatedUser) {
-          const token = signJwt({
-            userId: updatedUser.id,
-            email: updatedUser.email,
-            name: updatedUser.name || undefined,
-            role: "admin",
-            plan: updatedUser.plan,
-          });
-          const cookieStore = await cookies();
-          cookieStore.set("ai_reviewer_jwt", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 24 * 30,
-          });
-        }
-      }
-    } catch (err) {
-      console.warn("Could not elevate role to admin:", err);
-    }
-    return { success: true };
-  }
-  return { success: false, error: "Invalid admin passcode." };
+  return {
+    success: false,
+    error: "Passcode elevation is disabled. Admin access is strictly restricted to Javedkhan7786king@gmail.com.",
+  };
 }
 
 // 7-day expired guest user data cleanup (MongoDB + Storage)
 export async function cleanupExpiredGuestsAdminAction(days = 7) {
+  await assertAdmin();
   const { cleanupExpiredGuestData } = await import("@/lib/cleanup");
   const result = await cleanupExpiredGuestData(days);
   revalidatePath("/admin");
@@ -98,6 +84,7 @@ export async function setUserRoleAction(
   userId: string,
   role: "user" | "admin"
 ): Promise<{ success: boolean; error?: string }> {
+  await assertAdmin();
   try {
     await db.updateUser(userId, { role });
     return { success: true };

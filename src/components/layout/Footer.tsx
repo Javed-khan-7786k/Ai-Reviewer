@@ -101,9 +101,6 @@ export function Footer() {
         <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4">
           <p>© {new Date().getFullYear()} AI Reviewer SaaS MVP. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <Link href="/admin" className="hover:text-slate-600 font-medium text-slate-500 transition-colors">
-              Admin Portal
-            </Link>
             <span className="hover:text-slate-600">Privacy Policy</span>
             <span className="hover:text-slate-600">Terms of Service</span>
             <span className="hover:text-slate-600">Security</span>

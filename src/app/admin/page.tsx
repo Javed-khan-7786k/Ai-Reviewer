@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import {
   Card,
@@ -31,7 +32,6 @@ import {
   getAdminConfigAction,
   updateAdminConfigAction,
   getAllUsersAdminAction,
-  verifyAdminPasscodeAction,
   cleanupExpiredGuestsAdminAction,
 } from "@/actions/admin";
 import { getCurrentUserAction } from "@/actions/auth";
@@ -39,6 +39,7 @@ import { AdminConfig } from "@/lib/admin";
 
 export default function AdminPage() {
   const toast = useToast();
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -46,10 +47,8 @@ export default function AdminPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
 
-  // Admin access protection passkey state
+  // Admin access protection state (strictly verified via session)
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [passcode, setPasscode] = useState("");
-  const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);
 
   // Payment keys form state
@@ -65,56 +64,51 @@ export default function AdminPage() {
   useEffect(() => {
     async function init() {
       setIsLoading(true);
-      const [u, cfg, userList] = await Promise.all([
-        getCurrentUserAction(),
-        getAdminConfigAction(),
-        getAllUsersAdminAction(),
-      ]);
-      setCurrentUser(u);
-      setConfig(cfg);
-      if (cfg?.paymentKeys) {
-        setPaymentKeys({
-          razorpayKeyId: cfg.paymentKeys.razorpayKeyId || "",
-          razorpayKeySecret: cfg.paymentKeys.razorpayKeySecret || "",
-          stripePublishableKey: cfg.paymentKeys.stripePublishableKey || "",
-          stripeSecretKey: cfg.paymentKeys.stripeSecretKey || "",
-          paypalClientId: cfg.paymentKeys.paypalClientId || "",
-          paypalSecret: cfg.paymentKeys.paypalSecret || "",
-        });
+      // Clean up any stale localStorage unlock keys
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("ai_reviewer_admin_unlocked");
       }
-      setUsers(userList);
 
-      // Super admin check: explicit role from DB or super admin email
-      const isSessionAdmin =
-        u?.role === "admin" ||
-        u?.email?.toLowerCase() === "javedkhan7786king@gmail.com";
-      const localAdmin =
-        typeof window !== "undefined" &&
-        localStorage.getItem("ai_reviewer_admin_unlocked") === "true";
-      if (isSessionAdmin || localAdmin) {
+      try {
+        const u = await getCurrentUserAction();
+        setCurrentUser(u);
+
+        // Super admin check: explicit role from DB or super admin email
+        const isSessionAdmin =
+          u?.role === "admin" ||
+          u?.email?.toLowerCase() === "javedkhan7786king@gmail.com";
+
+        if (!isSessionAdmin) {
+          setIsUnlocked(false);
+          setIsLoading(false);
+          return;
+        }
+
         setIsUnlocked(true);
+        const [cfg, userList] = await Promise.all([
+          getAdminConfigAction(),
+          getAllUsersAdminAction(),
+        ]);
+        setConfig(cfg);
+        if (cfg?.paymentKeys) {
+          setPaymentKeys({
+            razorpayKeyId: cfg.paymentKeys.razorpayKeyId || "",
+            razorpayKeySecret: cfg.paymentKeys.razorpayKeySecret || "",
+            stripePublishableKey: cfg.paymentKeys.stripePublishableKey || "",
+            stripeSecretKey: cfg.paymentKeys.stripeSecretKey || "",
+            paypalClientId: cfg.paymentKeys.paypalClientId || "",
+            paypalSecret: cfg.paymentKeys.paypalSecret || "",
+          });
+        }
+        setUsers(userList);
+      } catch (err) {
+        console.error("Failed to load admin data:", err);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
     init();
   }, []);
-
-  const handleUnlockAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Issue #3: Verify passcode via server action (reads ADMIN_PASSCODE env var)
-    const result = await verifyAdminPasscodeAction(passcode.trim());
-    if (result.success) {
-      setIsUnlocked(true);
-      setPasscodeError(null);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("ai_reviewer_admin_unlocked", "true");
-      }
-      toast.success("Admin security clearance granted!", "Access Granted");
-    } else {
-      setPasscodeError(result.error || "Invalid admin passcode.");
-      toast.error("Incorrect administrator passcode.");
-    }
-  };
 
   const handleToggle = async (key: keyof AdminConfig, value: any) => {
     if (!config) return;
@@ -182,7 +176,7 @@ export default function AdminPage() {
     }
   };
 
-  if (isLoading || !config) {
+  if (isLoading) {
     return (
       <DashboardShell>
         <div className="py-20 text-center text-xs text-slate-500">
@@ -192,57 +186,38 @@ export default function AdminPage() {
     );
   }
 
-  // Admin Protection Shield (If not unlocked)
+  // Admin Access Strictly Denied for Unauthorized Users
   if (!isUnlocked) {
     return (
       <DashboardShell>
         <div className="min-h-[60vh] flex items-center justify-center py-12 px-4">
           <div className="w-full max-w-md bg-white border border-rose-200 shadow-xl rounded-2xl p-8 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert className="w-6 h-6" />
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 shadow-inner">
+              <ShieldAlert className="w-7 h-7" />
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900 mb-1">
-              Admin Protected Zone
+            <h3 className="text-xl font-extrabold text-slate-900 mb-2">
+              403 Forbidden - Admin Only
             </h3>
-            <p className="text-xs text-slate-500 mb-6">
-              This section is restricted to administrators. Enter your admin security key to unlock master controls.
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+              This route is strictly restricted to the Super Administrator (<code className="text-rose-600 font-semibold">Javedkhan7786king@gmail.com</code>). Regular users and unauthorized accounts cannot access or view this control panel.
             </p>
-
-            <form onSubmit={handleUnlockAdmin} className="space-y-4 text-left">
-              {passcodeError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
-                  {passcodeError}
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Administrator Passcode
-                </label>
-                <div className="relative">
-                  <Key className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Enter admin passcode (e.g. admin123)"
-                    value={passcode}
-                    onChange={(e) => setPasscode(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-slate-900 font-medium"
-                  />
-                </div>
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  Default developer test key: <code className="bg-slate-100 px-1 py-0.5 rounded text-rose-600 font-bold">admin123</code>
-                </span>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full justify-center text-xs h-10 bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs"
-              >
-                <ShieldCheck className="w-4 h-4 mr-1.5" />
-                <span>Verify Admin Access</span>
-              </Button>
-            </form>
+            <Button
+              onClick={() => router.push("/dashboard")}
+              className="w-full justify-center text-xs h-10 bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+            >
+              Return to User Dashboard
+            </Button>
           </div>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  if (!config) {
+    return (
+      <DashboardShell>
+        <div className="py-20 text-center text-xs text-slate-500">
+          Unable to load admin configuration. Please verify database connection.
         </div>
       </DashboardShell>
     );

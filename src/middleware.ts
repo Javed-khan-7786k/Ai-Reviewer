@@ -34,11 +34,32 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Admin routes require authentication. Passcode verification is handled within /admin.
-    if (isAdmin && !token) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+    // Strictly restrict /admin to verified admin accounts
+    if (isAdmin) {
+      try {
+        const parts = token.split(".");
+        if (parts.length !== 3) {
+          return NextResponse.redirect(new URL("/login", request.url));
+        }
+        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+        const json =
+          typeof atob === "function"
+            ? atob(padded)
+            : Buffer.from(padded, "base64").toString("utf-8");
+        const payload = JSON.parse(json);
+
+        const isSuperAdmin =
+          payload?.role === "admin" ||
+          payload?.email?.toLowerCase() === "javedkhan7786king@gmail.com";
+
+        if (!isSuperAdmin) {
+          // Deny access for normal users, redirect directly to dashboard
+          return NextResponse.redirect(new URL("/dashboard", request.url));
+        }
+      } catch {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
     }
   }
 
