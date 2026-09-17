@@ -34,25 +34,11 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // For admin routes, decode JWT and check role
-    if (isAdmin && token) {
-      try {
-        const parts = token.split(".");
-        if (parts.length === 3) {
-          const payload = JSON.parse(
-            Buffer.from(
-              parts[1].replace(/-/g, "+").replace(/_/g, "/") +
-                "=".repeat((4 - (parts[1].length % 4)) % 4),
-              "base64"
-            ).toString("utf-8")
-          );
-          if (payload.role !== "admin") {
-            return NextResponse.redirect(new URL("/dashboard", request.url));
-          }
-        }
-      } catch {
-        return NextResponse.redirect(new URL("/login", request.url));
-      }
+    // Admin routes require authentication. Passcode verification is handled within /admin.
+    if (isAdmin && !token) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
     }
   }
 

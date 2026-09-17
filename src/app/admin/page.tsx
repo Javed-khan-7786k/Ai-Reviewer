@@ -32,6 +32,7 @@ import {
   updateAdminConfigAction,
   getAllUsersAdminAction,
   verifyAdminPasscodeAction,
+  cleanupExpiredGuestsAdminAction,
 } from "@/actions/admin";
 import { getCurrentUserAction } from "@/actions/auth";
 import { AdminConfig } from "@/lib/admin";
@@ -43,6 +44,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   // Admin access protection passkey state
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -242,8 +244,37 @@ export default function AdminPage() {
     );
   }
 
+  const handleCleanupGuests = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to permanently purge all guest accounts and uploaded files older than 7 days?"
+      )
+    ) {
+      return;
+    }
+    setIsCleaning(true);
+    try {
+      const res = await cleanupExpiredGuestsAdminAction(7);
+      if (res.success) {
+        toast.success(
+          `Purged ${res.deletedUsersCount} inactive guests, ${res.deletedDocumentsCount} documents, and freed storage!`,
+          "Cleanup Successful"
+        );
+        const userList = await getAllUsersAdminAction();
+        setUsers(userList);
+      } else {
+        toast.error(res.error || "Failed to purge guest data.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Cleanup failed.");
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   return (
     <DashboardShell>
+      {/* ... previous content ... */}
       <div className="space-y-8 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
@@ -742,6 +773,48 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 5. GUEST DATA RETENTION & STORAGE OPTIMIZATION (7-DAY AUTO PURGE) */}
+        <Card className="border-amber-200/80 bg-linear-to-br from-white to-amber-50/20">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-amber-600" />
+                  <span>Storage & Inactive Guest Retention (7-Day Purge)</span>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Permanently cleans up temporary guest accounts, orphan records, and uploaded files older than 7 days from both MongoDB Atlas and Vercel Blob storage.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCleanupGuests}
+                disabled={isCleaning}
+                className="border-amber-300 text-amber-900 hover:bg-amber-100/60 font-semibold cursor-pointer shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isCleaning ? "animate-spin" : ""}`} />
+                <span>{isCleaning ? "Purging Old Guests..." : "Purge Expired Guests (>7 Days)"}</span>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-white rounded-xl border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
+              <div className="space-y-1">
+                <span className="font-semibold text-slate-900 block">Automated Background Cron</span>
+                <p className="text-[11px] text-slate-500">
+                  Configured via <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800">vercel.json</code> to run daily at midnight (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800">/api/cron/cleanup</code>).
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-[11px] border border-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Active (7-Day Policy)
+              </span>
             </div>
           </CardContent>
         </Card>
