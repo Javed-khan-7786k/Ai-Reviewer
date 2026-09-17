@@ -1,4 +1,4 @@
-import { put, del } from "@vercel/blob";
+import { put, del, get } from "@vercel/blob";
 import {
   S3Client,
   PutObjectCommand,
@@ -58,14 +58,30 @@ export const storage = {
     key: string,
     contentType: string
   ): Promise<{ storageKey: string }> {
-    // 1. Primary: Vercel Blob
+    // 1. Primary: Vercel Blob (supports both public and private stores)
     if (isBlobConfigured) {
-      const blob = await put(key, buffer, {
-        access: "public",
-        contentType: contentType || "application/octet-stream",
-        token: blobToken,
-      });
-      return { storageKey: blob.url };
+      try {
+        const blob = await put(key, buffer, {
+          access: "public",
+          contentType: contentType || "application/octet-stream",
+          token: blobToken,
+        });
+        return { storageKey: blob.url };
+      } catch (err: any) {
+        // If the Vercel Blob store is configured with private access
+        if (
+          err?.message?.includes("private store") ||
+          err?.message?.includes("private access")
+        ) {
+          const blob = await put(key, buffer, {
+            access: "private",
+            contentType: contentType || "application/octet-stream",
+            token: blobToken,
+          });
+          return { storageKey: blob.url };
+        }
+        throw err;
+      }
     }
 
     // 2. Secondary: Cloudflare R2
@@ -87,17 +103,41 @@ export const storage = {
   },
 
   async download(key: string): Promise<Buffer> {
-    // If it's a full URL (Vercel Blob URL)
-    if (key.startsWith("http://") || key.startsWith("https://")) {
-      const response = await fetch(key);
-      if (!response.ok) {
-        throw new Error(`Failed to download file from Vercel Blob (${response.status} ${response.statusText})`);
+    // 1. If Vercel Blob is configured or it's a full URL
+    if (isBlobConfigured || key.startsWith("http://") || key.startsWith("https://")) {
+      // First attempt direct fetch (works for public blobs)
+      try {
+        const response = await fetch(key);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          return Buffer.from(arrayBuffer);
+        }
+      } catch {}
+
+      // If direct fetch fails or store is private, use @vercel/blob get()
+      if (isBlobConfigured) {
+        try {
+          const getRes = await get(key, {
+            access: "private",
+            token: blobToken,
+          });
+          if (getRes && getRes.stream) {
+            const reader = getRes.stream.getReader();
+            const chunks: Uint8Array[] = [];
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) chunks.push(value);
+            }
+            return Buffer.concat(chunks);
+          }
+        } catch (err) {
+          console.error("Vercel Blob private get failed:", err);
+        }
       }
-      const arrayBuffer = await response.arrayBuffer();
-      return Buffer.from(arrayBuffer);
     }
 
-    // Otherwise handle Cloudflare R2
+    // 2. Cloudflare R2
     if (isR2Configured && s3Client) {
       const response = await s3Client.send(
         new GetObjectCommand({
@@ -118,27 +158,16 @@ export const storage = {
       return streamToBuffer(response.Body);
     }
 
-    // Fallback: If Vercel Blob is configured but key might be an older blob URL or pathname
-    if (isBlobConfigured) {
-      const response = await fetch(key);
-      if (response.ok) {
-        const arrayBuffer = await response.arrayBuffer();
-        return Buffer.from(arrayBuffer);
-      }
-    }
-
     throw new Error("No object storage configured or file not found.");
   },
 
   async delete(key: string): Promise<boolean> {
     try {
-      // If it's a Vercel Blob URL or blob is configured
-      if (key.startsWith("http://") || key.startsWith("https://")) {
+      if (key.startsWith("http://") || key.startsWith("https://") || isBlobConfigured) {
         await del(key, { token: blobToken });
         return true;
       }
 
-      // If R2
       if (isR2Configured && s3Client) {
         await s3Client.send(
           new DeleteObjectCommand({
@@ -146,12 +175,6 @@ export const storage = {
             Key: key,
           })
         );
-        return true;
-      }
-
-      // Attempt Vercel Blob del if token configured
-      if (isBlobConfigured) {
-        await del(key, { token: blobToken });
         return true;
       }
 
