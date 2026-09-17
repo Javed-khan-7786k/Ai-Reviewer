@@ -22,6 +22,14 @@ export async function rewriteParagraphAction(
     }
 
     const config = getAdminConfig();
+    const maxWords = config.rateLimits?.maxWordsPerRewrite || 800;
+    const wordCount = paragraphText.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount > maxWords) {
+      return {
+        success: false,
+        error: `Paragraph exceeds maximum allowed limit of ${maxWords} words (current: ${wordCount} words). Please select a shorter paragraph to rewrite.`,
+      };
+    }
     const user = await getCurrentUserAction();
     const usage = await db.getUserUsageToday(user.id);
 

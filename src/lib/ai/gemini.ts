@@ -19,11 +19,12 @@ export function isGeminiConfigured(): boolean {
   return key.length > 5;
 }
 
-// Available stable flash models in order of priority
-const GEMINI_MODELS = [
+// Default stable flash models in order of priority
+const DEFAULT_GEMINI_MODELS = [
   "gemini-2.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash",
+  "gemini-1.5-pro",
 ];
 
 async function callGeminiApi(
@@ -36,9 +37,19 @@ async function callGeminiApi(
     throw new Error("GEMINI_API_KEY is not configured.");
   }
 
+  // Dynamic model resolution from Admin Config
+  const config = getAdminConfig();
+  const configuredModel = config.geminiModel?.trim();
+  const modelsToTry = Array.from(
+    new Set([
+      ...(configuredModel ? [configuredModel] : []),
+      ...DEFAULT_GEMINI_MODELS,
+    ])
+  );
+
   let lastError: any = null;
 
-  for (const model of GEMINI_MODELS) {
+  for (const model of modelsToTry) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 

@@ -40,7 +40,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     plan: string;
     role?: string;
   } | null>(null);
-  const [limits, setLimits] = useState<{ maxDailyUploadsFree: number; maxDailyRewritesFree: number } | null>(null);
+  const [limits, setLimits] = useState<any | null>(null);
 
   useEffect(() => {
     async function fetchUser() {
@@ -100,11 +100,15 @@ export function DashboardShell({ children }: DashboardShellProps) {
       href: "/analytics",
       icon: BarChart3,
     },
-    {
-      name: "Subscription",
-      href: "/subscription",
-      icon: CreditCard,
-    },
+    ...(!limits?.fullAppFree
+      ? [
+          {
+            name: "Subscription",
+            href: "/subscription",
+            icon: CreditCard,
+          },
+        ]
+      : []),
     {
       name: "Settings",
       href: "/settings",
@@ -238,6 +242,21 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   Manage Plan
                 </button>
               </Link>
+            </div>
+          ) : limits?.fullAppFree ? (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>100% Free Mode</span>
+                </span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Unlocked
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                All document reviews, ATS checks, and paragraph rewrites are completely free and unlimited.
+              </p>
             </div>
           ) : (
             <div>

@@ -89,8 +89,12 @@ export async function getAdminPublicLimitsAction() {
     maxDailyUploadsPro: config.rateLimits.maxDailyUploadsPro,
     maxDailyRewritesFree: config.rateLimits.maxDailyRewritesFree,
     maxDailyRewritesPro: config.rateLimits.maxDailyRewritesPro,
+    maxWordsPerDocument: config.rateLimits.maxWordsPerDocument || 10000,
+    maxWordsPerRewrite: config.rateLimits.maxWordsPerRewrite || 800,
     fullAppFree: config.fullAppFree,
     requireLogin: config.requireLogin,
+    subscriptionsEnabled: config.subscriptionsEnabled,
+    geminiModel: config.geminiModel || "gemini-2.5-flash",
   };
 }
 

@@ -298,6 +298,22 @@ export async function extractAndNormalizeDocument(
     normalizedParagraphs.length > 0 ? normalizedParagraphs : [cleanText];
 
   const words = cleanText.split(/\s+/).filter(Boolean);
+
+  try {
+    const { getAdminConfig } = require("@/lib/admin");
+    const adminConfig = getAdminConfig();
+    const maxWords = adminConfig?.rateLimits?.maxWordsPerDocument || 10000;
+    if (words.length > maxWords) {
+      throw new Error(
+        `Document exceeds the maximum limit of ${maxWords.toLocaleString()} words (current length: ${words.length.toLocaleString()} words).`
+      );
+    }
+  } catch (err: any) {
+    if (err.message && err.message.includes("Document exceeds")) {
+      throw err;
+    }
+  }
+
   const sentences = cleanText
     .split(/[.!?]+/)
     .filter((s) => s.trim().length > 0);

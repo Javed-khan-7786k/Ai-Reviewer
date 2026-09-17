@@ -28,6 +28,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { getCurrentUserAction, logoutUserAction } from "@/actions/auth";
 import { updateProfileNameAction, purgeAllUserDocumentsAction } from "@/actions/settings";
+import { getAdminPublicLimitsAction } from "@/actions/admin";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 export default function SettingsPage() {
@@ -35,6 +36,7 @@ export default function SettingsPage() {
   const toast = useToast();
 
   const [user, setUser] = useState<any>(null);
+  const [adminLimits, setAdminLimits] = useState<any>(null);
   const [nameInput, setNameInput] = useState("");
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [defaultMode, setDefaultMode] = useState("auto");
@@ -47,9 +49,13 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const u = await getCurrentUserAction();
+      const [u, lim] = await Promise.all([
+        getCurrentUserAction(),
+        getAdminPublicLimitsAction(),
+      ]);
       setUser(u);
-      setNameInput(u.name || "");
+      setAdminLimits(lim);
+      setNameInput(u?.name || "");
       // Issue #8: Load persisted preferences from localStorage
       if (typeof window !== "undefined") {
         const saved = localStorage.getItem("ai_reviewer_settings");
@@ -210,27 +216,33 @@ export default function SettingsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-base font-bold text-slate-900 capitalize">
-                    {user?.plan || "free"} Plan
+                    {adminLimits?.fullAppFree
+                      ? "Pro Features (100% Free Mode)"
+                      : `${user?.plan || "free"} Plan`}
                   </span>
                   <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200 uppercase">
                     Active
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  {user?.plan === "pro"
+                  {adminLimits?.fullAppFree
+                    ? "All document analyses, deep ATS checks, and paragraph rewrites are 100% free and unlocked by the administrator."
+                    : user?.plan === "pro"
                     ? "Unlimited document analyses, full ATS checks, and priority queue."
-                    : "5 reviews per day and 25 paragraph rewrites daily."}
+                    : `${adminLimits?.maxDailyUploadsFree || 5} reviews per day and ${adminLimits?.maxDailyRewritesFree || 25} paragraph rewrites daily.`}
                 </p>
               </div>
 
-              <Link href="/subscription">
-                <Button size="sm" className="shadow-xs whitespace-nowrap">
-                  <span>
-                    {user?.plan === "pro" ? "Manage Subscription" : "Upgrade to Pro Plan"}
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                </Button>
-              </Link>
+              {!adminLimits?.fullAppFree && (
+                <Link href="/subscription">
+                  <Button size="sm" className="shadow-xs whitespace-nowrap">
+                    <span>
+                      {user?.plan === "pro" ? "Manage Subscription" : "Upgrade to Pro Plan"}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>

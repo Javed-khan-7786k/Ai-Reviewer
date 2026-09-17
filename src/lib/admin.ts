@@ -19,6 +19,7 @@ export interface AdminConfig {
   paymentTestMode: boolean;
   paymentKeys: AdminPaymentKeys;
   geminiApiKey?: string;
+  geminiModel?: string;
   aiProvider: "gemini" | "heuristics";
   rateLimits: {
     maxUploadsPerMinute: number;
@@ -27,6 +28,8 @@ export interface AdminConfig {
     maxDailyRewritesFree: number;
     maxDailyRewritesPro: number;
     maxFileSizeMB: number;
+    maxWordsPerDocument: number;
+    maxWordsPerRewrite: number;
   };
 }
 
@@ -46,6 +49,7 @@ const DEFAULT_CONFIG: AdminConfig = {
   },
   aiProvider: (process.env.AI_PROVIDER as "gemini" | "heuristics") || "gemini",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
   rateLimits: {
     maxUploadsPerMinute: 10,
     maxDailyUploadsFree: 5,
@@ -53,6 +57,8 @@ const DEFAULT_CONFIG: AdminConfig = {
     maxDailyRewritesFree: 25,
     maxDailyRewritesPro: 500,
     maxFileSizeMB: 15,
+    maxWordsPerDocument: 10000,
+    maxWordsPerRewrite: 800,
   },
 };
 

@@ -207,17 +207,19 @@ export default function SubscriptionPage() {
           </div>
         )}
 
-        {/* Issue #23: Clear indicator that payment gateways are in demo/test mode */}
-        <div className="p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-center justify-between gap-3 text-amber-900 text-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-bold text-[10px] tracking-wide uppercase">
-              Sandbox / Demo Mode
-            </span>
-            <span>
-              All payment gateways (Razorpay, Stripe, PayPal) are currently simulated in test mode. Upgrades activate immediately without actual payment.
-            </span>
+        {/* Indicator that payment gateways are in demo/test mode (hidden when app is free) */}
+        {!isFullAppFree && adminConfig?.paymentTestMode && (
+          <div className="p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-center justify-between gap-3 text-amber-900 text-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-bold text-[10px] tracking-wide uppercase">
+                Sandbox / Demo Mode
+              </span>
+              <span>
+                All payment gateways (Razorpay, Stripe, PayPal) are currently simulated in test mode. Upgrades activate immediately without actual payment.
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Header with Currency Selector */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
