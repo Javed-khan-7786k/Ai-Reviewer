@@ -32,18 +32,33 @@ export async function updateAdminConfigAction(
   return { success: true, config };
 }
 
-// Issue #2: Role from DB, not email
+// Issue #2: Role from DB, not email + Real vs Guest user distinction
 export async function getAllUsersAdminAction() {
   await assertAdmin();
   const users = await db.listUsers();
-  return users.map((u) => ({
-    id: u.id,
-    name: u.name || u.email.split("@")[0],
-    email: u.email,
-    role: u.role || "user",
-    plan: u.plan,
-    createdAt: u.createdAt,
-  }));
+  const mapped = users.map((u) => {
+    const isGuest =
+      u.email.toLowerCase().includes("@aireviewer.local") ||
+      u.id.startsWith("usr_guest_");
+    return {
+      id: u.id,
+      name: u.name || (isGuest ? "Guest User" : u.email.split("@")[0]),
+      email: u.email,
+      role: u.role || "user",
+      plan: u.plan,
+      isGuest,
+      authProvider: isGuest ? "guest" : (u.passwordHash ? "email" : "google"),
+      createdAt: u.createdAt,
+    };
+  });
+
+  // Sort real registered users first, then by createdAt desc
+  return mapped.sort((a, b) => {
+    if (a.isGuest !== b.isGuest) {
+      return a.isGuest ? 1 : -1;
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 }
 
 // Public passcode elevation is strictly disabled. Only Javedkhan7786king@gmail.com is Super Admin.

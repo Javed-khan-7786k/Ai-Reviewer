@@ -2,7 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { syncGuestUserAction, resetGuestUserAction } from "@/actions/auth";
+import {
+  syncGuestUserAction,
+  resetGuestUserAction,
+  getCurrentUserAction,
+} from "@/actions/auth";
 
 export const USER_STORAGE_KEY = "ai_reviewer_user";
 export const USER_CHANGED_EVENT = "ai-reviewer-user-changed";
@@ -62,6 +66,24 @@ export function LocalStorageUserSync() {
 
     async function initUserSession() {
       try {
+        // 1. Check if the server already has an active, real authenticated user
+        const serverUser = await getCurrentUserAction();
+        const isRealServerUser =
+          serverUser &&
+          serverUser.id &&
+          !serverUser.email.toLowerCase().includes("@aireviewer.local") &&
+          serverUser.id !== "usr_guest_pending";
+
+        if (isRealServerUser) {
+          // Keep localStorage strictly synced with the active real authenticated user
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(serverUser));
+          window.dispatchEvent(
+            new CustomEvent(USER_CHANGED_EVENT, { detail: serverUser })
+          );
+          return; // Real user is active — NEVER run guest generation or overwrite!
+        }
+
+        // 2. If no real server session, check localStorage
         const rawUser = localStorage.getItem(USER_STORAGE_KEY);
         let user: any = null;
 
@@ -73,8 +95,21 @@ export function LocalStorageUserSync() {
           }
         }
 
-        // Case 1: User data is NOT found in localStorage
-        // Generate new dummy user, save to localStorage, and sync with server
+        const isRealLocalUser =
+          user &&
+          user.id &&
+          !user.email?.toLowerCase().includes("@aireviewer.local") &&
+          user.id !== "usr_guest_pending";
+
+        if (isRealLocalUser) {
+          // LocalStorage holds a real user session
+          window.dispatchEvent(
+            new CustomEvent(USER_CHANGED_EVENT, { detail: user })
+          );
+          return;
+        }
+
+        // 3. True guest visitor: if no guest exists, generate one
         if (!user || !user.id) {
           const newDummyUser = generateDummyGuestUser();
           localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newDummyUser));
@@ -88,11 +123,9 @@ export function LocalStorageUserSync() {
             new CustomEvent(USER_CHANGED_EVENT, { detail: newDummyUser })
           );
 
-          // Refresh server components to immediately reflect this brand new user's 0-used limits
           router.refresh();
         } else {
-          // Case 2: User data IS found in localStorage
-          // Ensure server session cookie matches the user stored in localStorage
+          // Sync existing guest session
           const res = await syncGuestUserAction(user);
           if (res.token) {
             localStorage.setItem("ai_reviewer_jwt", res.token);

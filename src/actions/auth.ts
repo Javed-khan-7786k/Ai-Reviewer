@@ -44,11 +44,13 @@ export async function getCurrentUserAction(): Promise<User & { role?: string; au
   if (token) {
     const payload = verifyJwt(token);
     if (payload && payload.userId) {
+      const isSuper = payload.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
       const user = await db.getUser(payload.userId);
       if (user) {
         return {
           ...user,
-          role: user.role || payload.role || "user",
+          role: isSuper ? "admin" : (user.role || payload.role || "user"),
+          plan: isSuper ? "pro" : user.plan,
           authProvider: (payload as any).authProvider || (user.email.includes("@aireviewer.local") ? "guest" : "email"),
         };
       }
@@ -56,8 +58,8 @@ export async function getCurrentUserAction(): Promise<User & { role?: string; au
         id: payload.userId,
         email: payload.email,
         name: payload.name || payload.email.split("@")[0],
-        plan: (payload as any).plan || "free",
-        role: payload.role || "user",
+        plan: isSuper ? "pro" : ((payload as any).plan || "free"),
+        role: isSuper ? "admin" : (payload.role || "user"),
         passwordHash: null,
         authProvider: (payload as any).authProvider || "email",
         createdAt: new Date().toISOString(),
@@ -372,6 +374,30 @@ export async function syncGuestUserAction(guestData: {
   plan?: "free" | "pro";
 }): Promise<{ success: boolean; user?: User; token?: string; error?: string }> {
   try {
+    const cookieStore = await cookies();
+    const existingToken = cookieStore.get(SESSION_COOKIE)?.value;
+    if (existingToken) {
+      const payload = verifyJwt(existingToken);
+      // If user is already authenticated with a REAL account, NEVER overwrite with guest
+      if (payload && payload.userId && !payload.email.toLowerCase().includes("@aireviewer.local")) {
+        const realUser = await db.getUser(payload.userId);
+        return {
+          success: true,
+          user: realUser || {
+            id: payload.userId,
+            email: payload.email,
+            name: payload.name || payload.email.split("@")[0],
+            plan: (payload as any).plan || "free",
+            role: payload.role || "user",
+            passwordHash: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          token: existingToken,
+        };
+      }
+    }
+
     let user = await db.getUser(guestData.id);
     if (!user) {
       user = await db.createUser({
@@ -389,7 +415,6 @@ export async function syncGuestUserAction(guestData: {
       plan: user.plan,
     });
 
-    const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
