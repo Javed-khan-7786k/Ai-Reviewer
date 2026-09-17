@@ -55,8 +55,8 @@ export async function cleanupExpiredGuestData(days = 7): Promise<CleanupResult> 
           {
             OR: [
               { email: { endsWith: "@aireviewer.local" } },
-              { id: { startsWith: "usr_guest_" } },
               { name: { startsWith: "Guest User #" } },
+              { name: { startsWith: "Demo User #" } },
             ],
           },
         ],

@@ -71,38 +71,10 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     setIsGoogleLoading(true);
     setError(null);
-
-    const googleEmail =
-      email.trim() && email.includes("@")
-        ? email.trim().toLowerCase()
-        : storedGuestUser?.email?.includes("@")
-        ? storedGuestUser.email
-        : "guest.google@example.com";
-
-    const derivedName = googleEmail.split("@")[0].replace(/[._]/g, " ");
-    const googleName =
-      storedGuestUser?.name ||
-      (derivedName.charAt(0).toUpperCase() + derivedName.slice(1));
-
-    const googleUser = {
-      email: googleEmail,
-      name: googleName,
-    };
-
-    const res = await googleLoginAction(googleUser);
-    setIsGoogleLoading(false);
-
-    if (res.success) {
-      saveSessionToStorage(res.token, res.user);
-      toast.success(`Signed in with Google as ${res.user?.name}!`, "Google Authentication");
-      router.push("/dashboard");
-    } else {
-      setError(res.error || "Google authentication failed.");
-      toast.error(res.error || "Google sign in error.");
-    }
+    window.location.href = "/api/auth/google";
   };
 
   const handleDemoLogin = async () => {
@@ -174,7 +146,7 @@ export default function LoginPage() {
               />
             </svg>
             <span>
-              {isGoogleLoading ? "Connecting with Google..." : "Continue with Google (Demo)"}
+              {isGoogleLoading ? "Connecting with Google..." : "Continue with Google"}
             </span>
           </button>
 

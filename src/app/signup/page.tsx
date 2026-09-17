@@ -61,32 +61,10 @@ export default function SignupPage() {
     }
   };
 
-  const handleGoogleSignup = async () => {
+  const handleGoogleSignup = () => {
     setIsGoogleLoading(true);
     setError(null);
-
-    const googleEmail = email.trim() && email.includes("@")
-      ? email.trim().toLowerCase()
-      : `user.${Date.now().toString(36)}@gmail.com`;
-
-    const googleName = name.trim() || googleEmail.split("@")[0];
-
-    const googleUser = {
-      email: googleEmail,
-      name: googleName,
-    };
-
-    const res = await googleLoginAction(googleUser);
-    setIsGoogleLoading(false);
-
-    if (res.success) {
-      saveSessionToStorage(res.token, res.user);
-      toast.success(`Signed up with Google as ${res.user?.name}!`, "Account Created");
-      router.push("/dashboard");
-    } else {
-      setError(res.error || "Google sign up error.");
-      toast.error(res.error || "Google authentication failed.");
-    }
+    window.location.href = "/api/auth/google";
   };
 
   return (
@@ -136,7 +114,7 @@ export default function SignupPage() {
               />
             </svg>
             <span>
-              {isGoogleLoading ? "Connecting with Google..." : "Sign up with Google (Demo)"}
+              {isGoogleLoading ? "Connecting with Google..." : "Sign up with Google"}
             </span>
           </button>
 
