@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getGoogleRedirectUri } from "@/lib/google-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : request.nextUrl.origin
-  );
-
-  const redirectUri = `${appUrl}/api/auth/callback/google`;
+  const redirectUri = getGoogleRedirectUri(request);
 
   if (!clientId) {
-    // If GOOGLE_CLIENT_ID is not configured yet, show clear instructions
     return new NextResponse(
       `<!DOCTYPE html>
       <html>
@@ -20,7 +16,7 @@ export async function GET(request: NextRequest) {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-            .card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; max-width: 540px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            .card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; max-width: 560px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
             h2 { font-size: 20px; color: #0f172a; margin-top: 0; }
             p { font-size: 14px; line-height: 1.6; color: #475569; }
             code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-size: 13px; color: #0f172a; }
@@ -31,11 +27,11 @@ export async function GET(request: NextRequest) {
         <body>
           <div class="card">
             <h2>🔑 Google OAuth Keys Required</h2>
-            <p>To enable real Google Sign-In with real Google accounts, please set your Google Cloud credentials:</p>
+            <p>To enable real Google Sign-In with real Google accounts, please configure your Google Cloud credentials:</p>
             <ol>
               <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>.</li>
               <li>Create an <strong>OAuth 2.0 Client ID</strong> (Web application).</li>
-              <li>Add Authorized redirect URI: <code>${redirectUri}</code></li>
+              <li>Add Authorized redirect URI:<br/><code>${redirectUri}</code></li>
               <li>Add these environment variables to your <strong>.env.local</strong> and <strong>Vercel Dashboard</strong>:
                 <br/><br/>
                 <code>GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com</code><br/>
@@ -53,7 +49,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Construct Google OAuth 2.0 authorization URL
+  // Construct Google OAuth 2.0 authorization URL with exact dynamic redirect_uri
   const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   googleAuthUrl.searchParams.set("client_id", clientId);
   googleAuthUrl.searchParams.set("redirect_uri", redirectUri);

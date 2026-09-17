@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signJwt } from "@/lib/jwt";
+import { getGoogleRedirectUri } from "@/lib/google-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,21 +12,27 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const error = searchParams.get("error");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : request.nextUrl.origin
-  );
-  const redirectUri = `${appUrl}/api/auth/callback/google`;
+  const host =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    request.nextUrl.host;
+  const proto =
+    request.headers.get("x-forwarded-proto") ||
+    (host.includes("localhost") ? "http" : "https");
+  const origin = `${proto}://${host}`;
+
+  const redirectUri = getGoogleRedirectUri(request);
 
   if (error || !code) {
     const errorMsg = error || "No authorization code returned by Google";
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errorMsg)}`, appUrl));
+    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errorMsg)}`, origin));
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(new URL("/login?error=Google OAuth credentials not configured", appUrl));
+    return NextResponse.redirect(new URL("/login?error=Google OAuth credentials not configured", origin));
   }
 
   try {
@@ -46,7 +53,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok || !tokenData.access_token) {
       console.error("Google token exchange error:", tokenData);
       return NextResponse.redirect(
-        new URL(`/login?error=${encodeURIComponent(tokenData.error_description || "Failed to exchange token with Google")}`, appUrl)
+        new URL(`/login?error=${encodeURIComponent(tokenData.error_description || "Failed to exchange token with Google")}`, origin)
       );
     }
 
@@ -57,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     const profile = await userRes.json();
     if (!userRes.ok || !profile.email) {
-      return NextResponse.redirect(new URL("/login?error=Failed to retrieve Google profile", appUrl));
+      return NextResponse.redirect(new URL("/login?error=Failed to retrieve Google profile", origin));
     }
 
     const realEmail = profile.email.trim().toLowerCase();
@@ -100,7 +107,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 5. Create redirect response and set httpOnly session cookie
-    const response = NextResponse.redirect(new URL("/dashboard", appUrl));
+    const response = NextResponse.redirect(new URL("/dashboard", origin));
     response.cookies.set("ai_reviewer_jwt", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -112,6 +119,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (err: any) {
     console.error("Google OAuth callback error:", err);
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(err.message || "Authentication failed")}`, appUrl));
+    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(err.message || "Authentication failed")}`, origin));
   }
 }
