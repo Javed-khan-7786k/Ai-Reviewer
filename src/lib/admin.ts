@@ -40,12 +40,12 @@ const DEFAULT_CONFIG: AdminConfig = {
   activePaymentGateway: "razorpay",
   paymentTestMode: true,
   paymentKeys: {
-    razorpayKeyId: "rzp_test_AiReviewerDemo123",
-    razorpayKeySecret: "sec_test_AiReviewerKey456",
-    stripePublishableKey: "pk_test_51AiReviewerDemoStripeKey",
-    stripeSecretKey: "sk_test_51AiReviewerSecretKey",
-    paypalClientId: "sb-client-id-demo-test",
-    paypalSecret: "sb-secret-key-demo-test",
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
+    paypalClientId: process.env.PAYPAL_CLIENT_ID || "",
+    paypalSecret: process.env.PAYPAL_SECRET || "",
   },
   aiProvider: (process.env.AI_PROVIDER as "gemini" | "heuristics") || "gemini",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
@@ -94,6 +94,9 @@ export function getAdminConfig(): AdminConfig {
   if (process.env.GEMINI_API_KEY) {
     config.geminiApiKey = process.env.GEMINI_API_KEY;
   }
+  if (process.env.GEMINI_MODEL) {
+    config.geminiModel = process.env.GEMINI_MODEL;
+  }
   if (process.env.AI_PROVIDER === "heuristics" || process.env.AI_PROVIDER === "gemini") {
     config.aiProvider = process.env.AI_PROVIDER;
   }
@@ -135,8 +138,16 @@ export async function getAdminConfigAsync(): Promise<AdminConfig> {
       subscriptionsEnabled: row.subscriptionsEnabled ?? DEFAULT_CONFIG.subscriptionsEnabled,
       activePaymentGateway: (row.activePaymentGateway as any) || DEFAULT_CONFIG.activePaymentGateway,
       paymentTestMode: row.paymentTestMode ?? DEFAULT_CONFIG.paymentTestMode,
-      paymentKeys: { ...DEFAULT_CONFIG.paymentKeys, ...dbPaymentKeys },
+      paymentKeys: {
+        razorpayKeyId: dbPaymentKeys.razorpayKeyId ?? (process.env.RAZORPAY_KEY_ID || ""),
+        razorpayKeySecret: dbPaymentKeys.razorpayKeySecret ?? (process.env.RAZORPAY_KEY_SECRET || ""),
+        stripePublishableKey: dbPaymentKeys.stripePublishableKey ?? (process.env.STRIPE_PUBLISHABLE_KEY || ""),
+        stripeSecretKey: dbPaymentKeys.stripeSecretKey ?? (process.env.STRIPE_SECRET_KEY || ""),
+        paypalClientId: dbPaymentKeys.paypalClientId ?? (process.env.PAYPAL_CLIENT_ID || ""),
+        paypalSecret: dbPaymentKeys.paypalSecret ?? (process.env.PAYPAL_SECRET || ""),
+      },
       geminiApiKey: row.geminiApiKey || process.env.GEMINI_API_KEY || "",
+      geminiModel: (row as any).geminiModel || process.env.GEMINI_MODEL || DEFAULT_CONFIG.geminiModel,
       aiProvider: (row.aiProvider as "gemini" | "heuristics") || DEFAULT_CONFIG.aiProvider,
       rateLimits: { ...DEFAULT_CONFIG.rateLimits, ...dbRateLimits },
     };
@@ -173,6 +184,7 @@ export async function updateAdminConfig(updates: Partial<AdminConfig>): Promise<
           paymentTestMode: merged.paymentTestMode,
           paymentKeys: merged.paymentKeys as any,
           geminiApiKey: merged.geminiApiKey || null,
+          geminiModel: merged.geminiModel || "gemini-2.5-flash",
           aiProvider: merged.aiProvider,
           rateLimits: merged.rateLimits as any,
         },
@@ -184,6 +196,7 @@ export async function updateAdminConfig(updates: Partial<AdminConfig>): Promise<
           paymentTestMode: merged.paymentTestMode,
           paymentKeys: merged.paymentKeys as any,
           geminiApiKey: merged.geminiApiKey || null,
+          geminiModel: merged.geminiModel || "gemini-2.5-flash",
           aiProvider: merged.aiProvider,
           rateLimits: merged.rateLimits as any,
         },

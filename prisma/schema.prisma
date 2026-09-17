@@ -114,6 +114,7 @@ model SiteConfig {
   paymentTestMode      Boolean  @default(true)
   paymentKeys          Json?
   geminiApiKey         String?
+  geminiModel          String?  @default("gemini-2.5-flash")
   aiProvider           String   @default("gemini")
   rateLimits           Json?
   createdAt            DateTime @default(now())
