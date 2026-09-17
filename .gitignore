@@ -44,4 +44,5 @@ next-env.d.ts
 # local storage and data
 .storage/
 scratch/
+secret/
 .txt
