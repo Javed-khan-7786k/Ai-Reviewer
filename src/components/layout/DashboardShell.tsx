@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { getCurrentUserAction, logoutUserAction } from "@/actions/auth";
+import { getAdminPublicLimitsAction } from "@/actions/admin";
 import { useToast } from "@/components/ui/Toast";
 import { USER_CHANGED_EVENT } from "@/components/auth/LocalStorageUserSync";
 
@@ -39,12 +40,15 @@ export function DashboardShell({ children }: DashboardShellProps) {
     plan: string;
     role?: string;
   } | null>(null);
+  const [limits, setLimits] = useState<{ maxDailyUploadsFree: number; maxDailyRewritesFree: number } | null>(null);
 
   useEffect(() => {
     async function fetchUser() {
       try {
         const u = await getCurrentUserAction();
         setUser(u);
+        const lim = await getAdminPublicLimitsAction();
+        setLimits(lim);
       } catch {
         // ignore
       }
@@ -245,7 +249,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 leading-snug mb-3">
-                5 reviews per day with paragraph rewrites.
+                {limits?.maxDailyUploadsFree || 5} reviews per day with paragraph rewrites.
               </p>
               <Link href="/subscription">
                 <button className="w-full text-center py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-white border border-slate-200 rounded-lg shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer">
@@ -286,7 +290,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex">
+        <div className="md:hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex" onClick={() => setMobileMenuOpen(false)}>
           <div className="w-64 bg-white h-full p-4 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">

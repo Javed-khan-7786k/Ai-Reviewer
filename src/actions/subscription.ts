@@ -1,6 +1,6 @@
 "use server";
 
-import { db, prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getCurrentUserAction } from "@/actions/auth";
 import { UserPlan } from "@/types";
 
@@ -9,17 +9,7 @@ export async function upgradeUserPlanAction(
 ): Promise<{ success: boolean; plan?: UserPlan; error?: string }> {
   try {
     const user = await getCurrentUserAction();
-
-    if (prisma) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { plan: newPlan },
-      });
-    }
-
-    // Persist to DB
     await db.updateUser(user.id, { plan: newPlan });
-
     return { success: true, plan: newPlan };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to update plan" };

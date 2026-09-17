@@ -31,6 +31,7 @@ import {
   getAdminConfigAction,
   updateAdminConfigAction,
   getAllUsersAdminAction,
+  verifyAdminPasscodeAction,
 } from "@/actions/admin";
 import { getCurrentUserAction } from "@/actions/auth";
 import { AdminConfig } from "@/lib/admin";
@@ -81,8 +82,8 @@ export default function AdminPage() {
       }
       setUsers(userList);
 
-      // Check if user has admin role in session or localStorage
-      const isSessionAdmin = u?.role === "admin" || u?.email?.includes("admin");
+      // Issue #2: Check admin role from DB, not email
+      const isSessionAdmin = u?.role === "admin";
       const localAdmin = typeof window !== "undefined" && localStorage.getItem("ai_reviewer_admin_unlocked") === "true";
       if (isSessionAdmin || localAdmin) {
         setIsUnlocked(true);
@@ -92,10 +93,11 @@ export default function AdminPage() {
     init();
   }, []);
 
-  const handleUnlockAdmin = (e: React.FormEvent) => {
+  const handleUnlockAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Default Admin Master Key: "admin123" or role "admin"
-    if (passcode.trim() === "admin123" || passcode.trim().toLowerCase() === "admin") {
+    // Issue #3: Verify passcode via server action (reads ADMIN_PASSCODE env var)
+    const result = await verifyAdminPasscodeAction(passcode.trim());
+    if (result.success) {
       setIsUnlocked(true);
       setPasscodeError(null);
       if (typeof window !== "undefined") {
@@ -103,7 +105,7 @@ export default function AdminPage() {
       }
       toast.success("Admin security clearance granted!", "Access Granted");
     } else {
-      setPasscodeError("Invalid admin passcode. Try 'admin123'.");
+      setPasscodeError(result.error || "Invalid admin passcode.");
       toast.error("Incorrect administrator passcode.");
     }
   };

@@ -1,18 +1,22 @@
+import { put, del } from "@vercel/blob";
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
 
+// Vercel Blob token
+const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+
+// Cloudflare R2 configuration
 const r2AccountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
 const r2AccessKey = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
 const r2SecretKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
 const r2BucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "ai-reviewer-documents";
 
+const isBlobConfigured = Boolean(blobToken);
 const isR2Configured = Boolean(
   r2AccountId && r2AccessKey && r2SecretKey && r2BucketName
 );
@@ -29,28 +33,23 @@ if (isR2Configured) {
   });
 }
 
-const LOCAL_UPLOADS_DIR = path.join(process.cwd(), ".storage", "uploads");
-
-function ensureLocalUploadsDir() {
-  if (!fs.existsSync(LOCAL_UPLOADS_DIR)) {
-    fs.mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
-  }
-}
-
 export const storage = {
   isConfigured(): boolean {
-    return isR2Configured;
+    return isBlobConfigured || isR2Configured;
+  },
+
+  getProvider(): "vercel-blob" | "cloudflare-r2" | "none" {
+    if (isBlobConfigured) return "vercel-blob";
+    if (isR2Configured) return "cloudflare-r2";
+    return "none";
   },
 
   generateStorageKey(userId: string, originalFileName: string): string {
     const timestamp = Date.now();
     const random = crypto.randomBytes(6).toString("hex");
-    // sanitize file name: remove non-alphanumeric except dots and dashes
-    const cleanName = path
-      .basename(originalFileName)
+    const cleanName = originalFileName
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .toLowerCase();
-
     return `users/${userId}/${timestamp}_${random}_${cleanName}`;
   },
 
@@ -59,6 +58,17 @@ export const storage = {
     key: string,
     contentType: string
   ): Promise<{ storageKey: string }> {
+    // 1. Primary: Vercel Blob
+    if (isBlobConfigured) {
+      const blob = await put(key, buffer, {
+        access: "public",
+        contentType: contentType || "application/octet-stream",
+        token: blobToken,
+      });
+      return { storageKey: blob.url };
+    }
+
+    // 2. Secondary: Cloudflare R2
     if (isR2Configured && s3Client) {
       await s3Client.send(
         new PutObjectCommand({
@@ -71,18 +81,23 @@ export const storage = {
       return { storageKey: key };
     }
 
-    // Local file storage fallback
-    ensureLocalUploadsDir();
-    // Use hash or encoded path to prevent traversal
-    const safeLocalPath = path.join(
-      LOCAL_UPLOADS_DIR,
-      key.replace(/[^a-zA-Z0-9._-]/g, "_")
+    throw new Error(
+      "No object storage configured. Set BLOB_READ_WRITE_TOKEN (for Vercel Blob) or Cloudflare R2 credentials (CLOUDFLARE_R2_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY, CLOUDFLARE_R2_BUCKET_NAME) in your environment variables."
     );
-    await fs.promises.writeFile(safeLocalPath, buffer);
-    return { storageKey: key };
   },
 
   async download(key: string): Promise<Buffer> {
+    // If it's a full URL (Vercel Blob URL)
+    if (key.startsWith("http://") || key.startsWith("https://")) {
+      const response = await fetch(key);
+      if (!response.ok) {
+        throw new Error(`Failed to download file from Vercel Blob (${response.status} ${response.statusText})`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+
+    // Otherwise handle Cloudflare R2
     if (isR2Configured && s3Client) {
       const response = await s3Client.send(
         new GetObjectCommand({
@@ -91,7 +106,7 @@ export const storage = {
         })
       );
       if (!response.Body) {
-        throw new Error(`File ${key} not found in storage.`);
+        throw new Error(`File ${key} not found in R2 storage.`);
       }
       const streamToBuffer = async (stream: any): Promise<Buffer> => {
         const chunks: any[] = [];
@@ -103,20 +118,27 @@ export const storage = {
       return streamToBuffer(response.Body);
     }
 
-    // Local file storage fallback
-    ensureLocalUploadsDir();
-    const safeLocalPath = path.join(
-      LOCAL_UPLOADS_DIR,
-      key.replace(/[^a-zA-Z0-9._-]/g, "_")
-    );
-    if (!fs.existsSync(safeLocalPath)) {
-      throw new Error(`Local file not found for key: ${key}`);
+    // Fallback: If Vercel Blob is configured but key might be an older blob URL or pathname
+    if (isBlobConfigured) {
+      const response = await fetch(key);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+      }
     }
-    return fs.promises.readFile(safeLocalPath);
+
+    throw new Error("No object storage configured or file not found.");
   },
 
   async delete(key: string): Promise<boolean> {
     try {
+      // If it's a Vercel Blob URL or blob is configured
+      if (key.startsWith("http://") || key.startsWith("https://")) {
+        await del(key, { token: blobToken });
+        return true;
+      }
+
+      // If R2
       if (isR2Configured && s3Client) {
         await s3Client.send(
           new DeleteObjectCommand({
@@ -127,16 +149,15 @@ export const storage = {
         return true;
       }
 
-      ensureLocalUploadsDir();
-      const safeLocalPath = path.join(
-        LOCAL_UPLOADS_DIR,
-        key.replace(/[^a-zA-Z0-9._-]/g, "_")
-      );
-      if (fs.existsSync(safeLocalPath)) {
-        await fs.promises.unlink(safeLocalPath);
+      // Attempt Vercel Blob del if token configured
+      if (isBlobConfigured) {
+        await del(key, { token: blobToken });
+        return true;
       }
-      return true;
-    } catch {
+
+      return false;
+    } catch (err) {
+      console.error("Storage delete error:", err);
       return false;
     }
   },

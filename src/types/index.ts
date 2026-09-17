@@ -4,11 +4,15 @@ export type DocumentStatus = "pending" | "processing" | "completed" | "failed";
 
 export type DocumentType = "resume" | "general";
 
+export type UserRole = "user" | "admin";
+
 export interface User {
   id: string;
   email: string;
   name: string | null;
   plan: UserPlan;
+  role: UserRole;
+  passwordHash: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -28,12 +28,8 @@ export async function uploadDocumentAction(
     const config = getAdminConfig();
     const user = await getCurrentUserAction();
 
-    // 1. Check Authentication requirement from Admin Config
     if (config.requireLogin && !user) {
-      return {
-        success: false,
-        error: "Authentication required. Please sign in before uploading documents.",
-      };
+      return { success: false, error: "Authentication required. Please sign in." };
     }
 
     const file = formData.get("file") as File | null;
@@ -41,16 +37,14 @@ export async function uploadDocumentAction(
       return { success: false, error: "No file was uploaded." };
     }
 
-    // 2. Validate file size against Admin Rate Limits
     const maxBytes = config.rateLimits.maxFileSizeMB * 1024 * 1024;
     if (file.size > maxBytes) {
       return {
         success: false,
-        error: `File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size configured by admin is ${config.rateLimits.maxFileSizeMB}MB.`,
+        error: `File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum: ${config.rateLimits.maxFileSizeMB}MB.`,
       };
     }
 
-    // 3. Validate file extension and MIME type
     const lowerName = file.name.toLowerCase();
     const isAllowedExt =
       lowerName.endsWith(".pdf") ||
@@ -59,13 +53,9 @@ export async function uploadDocumentAction(
       lowerName.endsWith(".txt");
 
     if (!isAllowedExt && !ALLOWED_MIME_TYPES.includes(file.type)) {
-      return {
-        success: false,
-        error: "Unsupported file format. Please upload a PDF, DOCX, or TXT file.",
-      };
+      return { success: false, error: "Unsupported file format. Please upload a PDF, DOCX, or TXT file." };
     }
 
-    // 4. Validate schema with Zod
     const validation = documentUploadSchema.safeParse({
       fileName: file.name,
       mimeType: file.type || (lowerName.endsWith(".pdf") ? "application/pdf" : "text/plain"),
@@ -74,13 +64,10 @@ export async function uploadDocumentAction(
     });
 
     if (!validation.success) {
-      return {
-        success: false,
-        error: validation.error.issues[0]?.message || "Document validation failed.",
-      };
+      return { success: false, error: validation.error.issues[0]?.message || "Validation failed." };
     }
 
-    // 5. Check Rate Limiting and Quota (Bypassed if Admin Enabled Full App Free Mode)
+    // Check rate limits
     if (!config.fullAppFree) {
       const usage = await db.getUserUsageToday(user.id);
       const isPro = user.plan === "pro";
@@ -91,27 +78,22 @@ export async function uploadDocumentAction(
       if (usage.documentsProcessed >= maxAllowed) {
         return {
           success: false,
-          error: `Daily upload limit reached (${usage.documentsProcessed}/${maxAllowed} documents used today). ${
-            !isPro
-              ? "Upgrade to Pro for higher daily limits or try again tomorrow."
-              : "Daily upload limit reached for your plan."
+          error: `Daily upload limit reached (${usage.documentsProcessed}/${maxAllowed}). ${
+            !isPro ? "Upgrade to Pro for more." : "Try again tomorrow."
           }`,
         };
       }
     }
 
-    // 6. Generate safe key and upload file to storage
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const storageKey = storage.generateStorageKey(user.id, file.name);
     await storage.upload(fileBuffer, storageKey, file.type || "application/octet-stream");
 
-    // 7. Detect document type hint
     const isResumeHint =
       lowerName.includes("resume") ||
       lowerName.includes("cv") ||
       lowerName.includes("curriculum");
 
-    // 8. Create database record
     const document = await db.createDocument({
       userId: user.id,
       fileName: file.name,
@@ -121,37 +103,30 @@ export async function uploadDocumentAction(
       documentType: isResumeHint ? "resume" : "general",
     });
 
-    // 9. Trigger Background Processing
+    // Use Inngest for background processing if configured
     if (process.env.INNGEST_EVENT_KEY) {
       try {
         await inngest.send({
           name: "document/process",
-          data: {
-            documentId: document.id,
-            userId: user.id,
-          },
+          data: { documentId: document.id, userId: user.id },
         });
       } catch (inngestErr) {
-        console.warn("Inngest send event warning:", inngestErr);
+        console.warn("Inngest event failed, processing inline:", inngestErr);
+        // Fallback to direct processing
+        processDocumentJob(document.id, user.id).catch((err) =>
+          console.error("Inline worker error:", err)
+        );
       }
+    } else {
+      // Direct async processing (works on Vercel serverless)
+      processDocumentJob(document.id, user.id).catch((err) =>
+        console.error("Worker error:", err)
+      );
     }
 
-    // Asynchronous background extraction & analysis
-    setTimeout(() => {
-      processDocumentJob(document.id, user.id).catch((err) =>
-        console.error("Async worker error:", err)
-      );
-    }, 100);
-
-    return {
-      success: true,
-      documentId: document.id,
-    };
+    return { success: true, documentId: document.id };
   } catch (err: any) {
-    console.error("Upload server action error:", err);
-    return {
-      success: false,
-      error: err.message || "An unexpected error occurred during upload.",
-    };
+    console.error("Upload error:", err);
+    return { success: false, error: err.message || "Upload failed." };
   }
 }

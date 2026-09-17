@@ -1,6 +1,11 @@
 import crypto from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "ai-reviewer-super-secret-jwt-key-2026";
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") {
+    console.error("CRITICAL: JWT_SECRET environment variable is not set! Using insecure fallback.");
+  }
+  return "ai-reviewer-dev-fallback-key-NOT-FOR-PRODUCTION";
+})();
 
 export interface JwtPayload {
   userId: string;

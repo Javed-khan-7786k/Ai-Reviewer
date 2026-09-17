@@ -9,17 +9,18 @@ export const USER_CHANGED_EVENT = "ai-reviewer-user-changed";
 
 export function generateDummyGuestUser() {
   const randNum = Math.floor(1000 + Math.random() * 9000);
-  const randId =
-    "usr_guest_" +
-    Date.now().toString(36) +
-    "_" +
-    Math.random().toString(36).substring(2, 7);
+  const uuid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 9);
+  const randId = `usr_guest_${uuid}`;
 
   return {
     id: randId,
     name: `Guest User #${randNum}`,
     email: `guest${randNum}@aireviewer.local`,
     plan: "free" as const,
+    role: "user" as const,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

@@ -174,7 +174,7 @@ export default function LoginPage() {
               />
             </svg>
             <span>
-              {isGoogleLoading ? "Connecting with Google..." : "Continue with Google"}
+              {isGoogleLoading ? "Connecting with Google..." : "Continue with Google (Demo)"}
             </span>
           </button>
 

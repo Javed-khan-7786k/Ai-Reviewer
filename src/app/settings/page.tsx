@@ -50,9 +50,31 @@ export default function SettingsPage() {
       const u = await getCurrentUserAction();
       setUser(u);
       setNameInput(u.name || "");
+      // Issue #8: Load persisted preferences from localStorage
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("ai_reviewer_settings");
+        if (saved) {
+          try {
+            const prefs = JSON.parse(saved);
+            if (prefs.defaultMode) setDefaultMode(prefs.defaultMode);
+            if (prefs.sensitivity) setSensitivity(prefs.sensitivity);
+            if (prefs.emailAlerts !== undefined) setEmailAlerts(prefs.emailAlerts);
+            if (prefs.autoPurge !== undefined) setAutoPurge(prefs.autoPurge);
+          } catch { /* ignore parse errors */ }
+        }
+      }
     }
     load();
   }, []);
+
+  // Persist settings to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ai_reviewer_settings", JSON.stringify({
+        defaultMode, sensitivity, emailAlerts, autoPurge,
+      }));
+    }
+  }, [defaultMode, sensitivity, emailAlerts, autoPurge]);
 
   const handleUpdateName = async (e: React.FormEvent) => {
     e.preventDefault();

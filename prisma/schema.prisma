@@ -12,6 +12,8 @@ model User {
   email        String        @unique
   name         String?
   plan         String        @default("free") // free, pro
+  role         String        @default("user") // user, admin
+  passwordHash String?
   documents    Document[]
   usageRecords UsageRecord[]
   createdAt    DateTime      @default(now())
@@ -100,4 +102,20 @@ model UsageRecord {
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+model SiteConfig {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  key                  String   @unique @default("global")
+  fullAppFree          Boolean  @default(false)
+  requireLogin         Boolean  @default(true)
+  subscriptionsEnabled Boolean  @default(true)
+  activePaymentGateway String   @default("razorpay")
+  paymentTestMode      Boolean  @default(true)
+  paymentKeys          Json?
+  geminiApiKey         String?
+  aiProvider           String   @default("gemini")
+  rateLimits           Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }

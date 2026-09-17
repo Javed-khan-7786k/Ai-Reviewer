@@ -256,12 +256,17 @@ export async function analyzeDocumentWithAi(
   paragraphs: string[],
   isResume: boolean
 ): Promise<DocumentAiAnalysisOutput> {
-  // 1. Google Gemini AI Analysis (Prioritized if GEMINI_API_KEY is configured)
-  if (isGeminiConfigured()) {
+  // Issue #7: Read AI provider preference from admin config
+  const { getAdminConfig } = await import("@/lib/admin");
+  const adminConfig = getAdminConfig();
+  const useGemini = adminConfig.aiProvider !== "heuristics" && isGeminiConfigured();
+
+  // 1. Google Gemini AI Analysis (if configured and admin hasn't forced heuristics)
+  if (useGemini) {
     try {
       return await geminiAnalyzeDocument(fullText, paragraphs, isResume);
     } catch (geminiErr) {
-      console.warn("Google Gemini document analysis failed, falling back:", geminiErr);
+      console.warn("Google Gemini analysis failed, falling back:", geminiErr);
     }
   }
 

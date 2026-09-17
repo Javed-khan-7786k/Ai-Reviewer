@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { db } from "@/lib/db";
@@ -64,6 +65,26 @@ export default async function AnalyticsPage() {
             Aggregated metrics and distribution patterns across all reviewed documents.
           </p>
         </div>
+
+        {completedDocs.length === 0 && (
+          <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50">
+            <CardContent className="p-8 text-center flex flex-col items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">No Document Analytics Yet</h3>
+              <p className="text-xs text-slate-500 max-w-sm mt-1 mb-4">
+                Upload and process your first document or resume to see AI likelihood distributions, readability scores, and content insights.
+              </p>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Upload Document
+              </Link>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Top summary stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

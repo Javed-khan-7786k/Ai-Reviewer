@@ -136,7 +136,7 @@ export default function SignupPage() {
               />
             </svg>
             <span>
-              {isGoogleLoading ? "Connecting with Google..." : "Sign up with Google"}
+              {isGoogleLoading ? "Connecting with Google..." : "Sign up with Google (Demo)"}
             </span>
           </button>
 
@@ -191,6 +191,9 @@ export default function SignupPage() {
                   className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 font-medium"
                 />
               </div>
+              {email && !email.includes("@") && (
+                <p className="mt-1 text-[11px] text-amber-600">Please enter a valid email address.</p>
+              )}
             </div>
 
             <div>
@@ -208,6 +211,28 @@ export default function SignupPage() {
                   className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 font-medium"
                 />
               </div>
+              {password && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <div className="h-1 flex-1 rounded-full overflow-hidden bg-slate-200">
+                    <div
+                      className={`h-full transition-all ${
+                        password.length < 6
+                          ? "w-1/3 bg-rose-500"
+                          : password.length < 10
+                          ? "w-2/3 bg-amber-500"
+                          : "w-full bg-emerald-500"
+                      }`}
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500">
+                    {password.length < 6
+                      ? "Too short (min 6)"
+                      : password.length < 10
+                      ? "Good"
+                      : "Strong"}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Button
