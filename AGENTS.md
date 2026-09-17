@@ -49,22 +49,27 @@ prisma/
 ```
 
 ### 2. Authentication & Authorization
+- **Super Admin:** Exclusively restricted to `Javedkhan7786king@gmail.com`. Passcode bypasses are removed.
 - **Passwords:** Hashed with PBKDF2 (100,000 iterations, 32-byte salt) via Node.js `crypto`.
-- **Roles:** Explicitly stored in MongoDB (`role: "user" | "admin"`). No email string matching.
-- **Middleware:** `src/middleware.ts` guards `/dashboard`, `/documents`, `/analytics`, `/settings`, and `/admin`. Non-admin users are barred from admin endpoints.
-- **Guest Sessions:** Cryptographically unique ID via `crypto.randomUUID()` with fallback.
+- **Roles:** Explicitly stored in MongoDB (`role: "user" | "admin"`).
+- **Auto-Login:** Users with active session credentials in `localStorage` (`ai_reviewer_user` and `ai_reviewer_jwt`) are automatically restored via `restoreSessionFromTokenAction` and redirected away from `/login` or `/signup` to `/dashboard`.
+- **Middleware:** `src/middleware.ts` guards protected routes and performs server-side 307 redirects for already-authenticated users trying to access login/signup.
+- **Session Isolation:** Real authenticated sessions are never overwritten by guest session generators.
 
 ### 3. Database & Storage Layer (Vercel-Ready)
-- **Zero Local Filesystem Writes:** All filesystem dependencies (`.storage/`, `fs.mkdirSync`, `fs.writeFileSync`) have been eliminated to prevent serverless `ENOENT` read-only container errors on Vercel.
-- **Database:** MongoDB Atlas via Prisma. Site configuration is stored in the `SiteConfig` collection.
+- **Zero Local Filesystem Writes:** All filesystem dependencies have been eliminated to prevent serverless read-only container errors on Vercel.
+- **Database:** MongoDB Atlas via Prisma. Site configuration (`fullAppFree`, `geminiModel`, `paymentKeys`, `rateLimits`) is stored in the `SiteConfig` collection.
 - **Storage:** Vercel Blob (`@vercel/blob`) via `BLOB_READ_WRITE_TOKEN`, with Cloudflare R2 support.
+- **Hex ObjectID Validation:** Always validate 24-character hexadecimal MongoDB ObjectIDs (`/^[0-9a-fA-F]{24}$/`) before performing Prisma operations on users or documents to avoid runtime crashes from `usr_guest_` strings.
 
-### 4. Background Processing
-- Inngest handles async heavy lifting at `/api/inngest`.
-- If Inngest credentials are not present, workers run inline serverless jobs gracefully.
+### 4. Dynamic Features & Payment Gateways
+- **Payment Keys:** Managed 100% dynamically via the `/admin` UI and stored in MongoDB `SiteConfig`. No hardcoded dummy test keys in source code.
+- **AI Engine:** Configurable AI model (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`) stored in DB and loaded dynamically at runtime.
+- **Full Free Mode:** When `fullAppFree` is true, all payment notices, test mode banners, and subscription upgrade buttons are automatically hidden across the application.
 
 ### 5. Coding Conventions
 - Use `"use server"` directive for all server actions.
 - Use `"use client"` directive for interactive client components.
 - Keep file uploads and sensitive secrets out of git.
-- Verify production builds with `npm run build` (`prisma generate && next build`).
+- Verify production builds with `npx next build` or `npm run build`.
+
