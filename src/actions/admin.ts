@@ -111,3 +111,33 @@ export async function setUserRoleAction(
     return { success: false, error: err.message || "Failed to update role." };
   }
 }
+
+// Service Wakeup Engine & Cron Scheduler Actions
+export async function getWakeupSchedulerAdminAction() {
+  await assertAdmin();
+  const { getWakeupConfig } = await import("@/lib/wakeup");
+  return getWakeupConfig();
+}
+
+export async function updateWakeupSchedulerAdminAction(
+  updates: any
+) {
+  await assertAdmin();
+  try {
+    const { saveWakeupConfig } = await import("@/lib/wakeup");
+    const config = await saveWakeupConfig(updates);
+    revalidatePath("/admin");
+    return { success: true, config };
+  } catch (err: any) {
+    const { getWakeupConfig } = await import("@/lib/wakeup");
+    return { success: false, config: await getWakeupConfig(), error: err.message };
+  }
+}
+
+export async function testWakeupSchedulerNowAdminAction() {
+  await assertAdmin();
+  const { executeWakeupPing } = await import("@/lib/wakeup");
+  const result = await executeWakeupPing();
+  revalidatePath("/admin");
+  return { success: result.success, result };
+}

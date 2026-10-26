@@ -36,9 +36,12 @@ import {
   updateAdminConfigAction,
   getAllUsersAdminAction,
   cleanupExpiredGuestsAdminAction,
+  getWakeupSchedulerAdminAction,
 } from "@/actions/admin";
 import { getCurrentUserAction } from "@/actions/auth";
 import { AdminConfig } from "@/lib/admin";
+import { WakeupSchedulerCard } from "@/components/admin/WakeupSchedulerCard";
+import { WakeupSchedulerConfig, DEFAULT_WAKEUP_CONFIG } from "@/lib/wakeup";
 
 export default function AdminPage() {
   const toast = useToast();
@@ -46,6 +49,7 @@ export default function AdminPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [users, setUsers] = useState<any[]>([]);
+  const [wakeupConfig, setWakeupConfig] = useState<WakeupSchedulerConfig>(DEFAULT_WAKEUP_CONFIG);
   const [userTab, setUserTab] = useState<"real" | "guest" | "all">("real");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -90,11 +94,15 @@ export default function AdminPage() {
         }
 
         setIsUnlocked(true);
-        const [cfg, userList] = await Promise.all([
+        const [cfg, userList, wakeupCfg] = await Promise.all([
           getAdminConfigAction(),
           getAllUsersAdminAction(),
+          getWakeupSchedulerAdminAction(),
         ]);
         setConfig(cfg);
+        if (wakeupCfg) {
+          setWakeupConfig(wakeupCfg);
+        }
         if (cfg?.paymentKeys) {
           setPaymentKeys({
             razorpayKeyId: cfg.paymentKeys.razorpayKeyId || "",
@@ -1037,7 +1045,10 @@ export default function AdminPage() {
           </CardContent>
         </Card>
 
-        {/* 5. GUEST DATA RETENTION & STORAGE OPTIMIZATION (7-DAY AUTO PURGE) */}
+        {/* 5. VIDEO AUTOMATION STUDIO WAKEUP SCHEDULER (RENDER ENGINE KEEP-ALIVE) */}
+        <WakeupSchedulerCard initialConfig={wakeupConfig} />
+
+        {/* 6. GUEST DATA RETENTION & STORAGE OPTIMIZATION (7-DAY AUTO PURGE) */}
         <Card className="border-amber-200/80 bg-linear-to-br from-white to-amber-50/20">
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
